@@ -1,0 +1,37 @@
+<?php
+/*
+Example by tutorial-code.php
+
+*/
+
+
+require dirname(__FILE__).'/smtp-validate-email.php';
+
+$from = 'your@emailaddress.com';
+
+if (!$db = new mysqli('localhost', 'username', 'password', 'databasename')) {
+	die('Can\'t connect to the database.');
+} else {
+	// after I imported all email addresses into the data I select 25 records for validation
+	$res = $db->query("SELECT ID, email FROM emailaddresses WHERE status = 'valid' ORDER BY RAND() LIMIT 25");
+	while ($obj = $res->fetch_object()) {
+		$status = 'invalid';
+		$address = trim($obj->email);
+		// filter for a valid email format
+		if( filter_var( $adres, FILTER_VALIDATE_EMAIL ) ) {
+			$domain = array_pop(explode('@', $address));
+			// check for existing MX records
+			if (checkdnsrr($domain, 'MX')) {
+				// use the validator class to connect via SMTP
+				$validator = new SMTP_Validate_Email($address, $from);
+				$smtp_results = $validator->validate();
+				if ($smtp_results[$adres]) {
+					$status = 'valid';
+				} 			
+			} 
+		}
+		// update the new status, otherwise you will check your records for years :)
+		$db->query(sprintf("UPDATE emailaddresses SET status = '%s' WHERE ID = %d", $status, $obj->ID));	
+	}
+	$db->close();
+}
